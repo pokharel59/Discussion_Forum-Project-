@@ -1,6 +1,7 @@
-# from django.urls import path
-# from . import views
+from django.urls import path
+from views import user_info
 
-# urlpatterns = [
-#     path("", views.index, name="index"),  # Add a simple view for testing
-# ]
+#This is demo url endpoint.
+urlpatterns = [
+    path("user/", user_info, name="user"),  # Add a simple view for testing
+]
