@@ -1,13 +1,50 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AbstractUser
 
-class ChatRoom(models.Model):
-    name = models.CharField(max_length=255)
+class Users(AbstractUser):
+    email = models.EmailField(unique=True)
+    password_hash = models.CharField(max_length=255)
+    google_id = models.IntegerField(null=True, blank=True, unique=True)
+    created_at = models.DateField(auto_now_add=True)
+
+    def __str__(self):
+        return self.username
+
+class Room(models.Model):
+    host = models.ForeignKey(Users, on_delete=models.CASCADE, related_name='hosted_rooms')
+    topic = models.CharField(max_length=255)
+    unique_code = models.CharField(max_length=255, unique=True)
+    timer_duration = models.DurationField()
+    created_at = models.DateField(auto_now_add=True)
+
+    def __str__(self):
+        return self.topic
+
+class Participants(models.Model):
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='participants')
+    user = models.ForeignKey(Users, on_delete=models.CASCADE, related_name='participations')
+    ready = models.BooleanField(default=False)
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} in {self.room.topic}"
 
 class Message(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE)
-    message = models.TextField()
-    timestamp = models.DateTimeField(auto_now_add=True)
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='messages')
+    sender = models.ForeignKey(Users, on_delete=models.CASCADE, related_name='sent_messages')
+    text = models.CharField(max_length=255)
+    sent_at = models.DateTimeField(auto_now_add=True)
 
-# Create your models here.
+    def __str__(self):
+        return f"Message from {self.sender.username} in {self.room.topic}"
+
+class ResendMessage(models.Model):
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name='resend_requests')
+    requester = models.ForeignKey(Users, on_delete=models.CASCADE, related_name='resend_requests')
+    sender = models.ForeignKey(Users, on_delete=models.CASCADE, related_name='resent_messages')
+    send_at = models.DateTimeField()
+    text = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"Resend request for message {self.message.id} by {self.requester.username}"
+
