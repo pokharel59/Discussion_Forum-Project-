@@ -1,3 +1,4 @@
+import uuid
 from django.contrib.auth import authenticate
 from rest_framework import status
 from django.core.mail import send_mail
@@ -7,7 +8,9 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.authtoken.models import Token
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
-from .models import User
+from .models import User, Room
+from .serializers import RoomSerializer
+from datetime import timedelta
 
 # Create your views here.
         
@@ -109,3 +112,45 @@ def get_user_info(request):
         "email": user.email,
         "username": user.username
     })
+
+def parse_duration(duration_str):
+    """Parses duration string '[DD] [HH:[MM:]]ss[.uuuuuu]' into timedelta."""
+    parts = duration_str.split()
+    days = int(parts[0])
+    time_parts = list(map(float, parts[1].split(':')))
+    return timedelta(days=days, hours=int(time_parts[0]), minutes=int(time_parts[1]), seconds=time_parts[2])
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_room(request):
+    user = request.user
+    data = request.data
+
+    unique_code = str(uuid.uuid4())  # FIXED: Generate a proper UUID string
+
+    # Convert timer_duration to timedelta
+    try:
+        timer_duration = parse_duration(data.get('timer_duration'))
+    except Exception:
+        return Response({'error': 'Invalid timer_duration format'}, status=status.HTTP_400_BAD_REQUEST)
+
+    serializer = RoomSerializer(data={
+        'topic': data.get('topic'),
+        'unique_code': unique_code,
+        'timer_duration': timer_duration
+    })
+
+    if serializer.is_valid():
+        serializer.save(host=user)  # FIXED: Assign the User instance, not ID
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+def get_room(request, room_id=None):  # request must be included as the first parameter
+    try:
+        room = Room.objects.get(unique_code=room_id)  # Use .get() if unique_code is unique
+        serializer = RoomSerializer(room, many=False)  # many=False since it's a single object
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Room.DoesNotExist:
+        return Response({"error": "Room not found"}, status=status.HTTP_404_NOT_FOUND)
