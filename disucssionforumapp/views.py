@@ -42,7 +42,7 @@ def register(request):
 
         # Generate token for verification
         token = Token.objects.create(user=user)
-        verification_link = f"http://127.0.0.1:8000/endpoint/verify/{token.key}"
+        verification_link = f"http://192.168.1.71:8000/endpoint/verify/{token.key}"
 
         # Send verification email
         send_mail(

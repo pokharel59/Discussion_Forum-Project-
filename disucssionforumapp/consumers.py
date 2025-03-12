@@ -1,14 +1,18 @@
-from channels.generic.websocket import AsyncWebsocketConsumer # Base class for handling WebSocket connections asynchronously
-from django.contrib.auth.models import AnonymousUser # Django's representation of a non-authenticated user
-from rest_framework_simplejwt.tokens import AccessToken # JWT token handling from the rest_framework_simplejwt package
-from channels.db import database_sync_to_async # Decorator to safely run database operations in an async context
-import json # parsing and serializing JSON data
+from collections import defaultdict
+from channels.generic.websocket import AsyncWebsocketConsumer
+from django.contrib.auth.models import AnonymousUser
+from rest_framework_simplejwt.tokens import AccessToken
+from channels.db import database_sync_to_async
+import json
 
 class YourConsumer(AsyncWebsocketConsumer):
+    # Dictionary to keep track of users in each room
+    # This will be a class variable shared across all instances
+    room_users = defaultdict(dict)
+    
     async def connect(self):
-        self.room_name = self.scope['url_route']['kwargs']['room_name'] # Extracts the room name from the WebSocket URL
-        self.room_group_name = f"chat_{self.room_name}" # Creates a unique group name for this chat room
-        self.user = AnonymousUser() # Initializes the user as anonymous
+        self.room_name = self.scope['url_route']['kwargs']['room_name']
+        self.room_group_name = f"chat_{self.room_name}"
 
         # Add user to the group
         await self.channel_layer.group_add(
@@ -16,9 +20,29 @@ class YourConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
 
+         # Initialize room in room_users dict if it doesn't exist
+        if self.room_group_name not in YourConsumer.room_users:
+            YourConsumer.room_users[self.room_group_name] = {}
+
         await self.accept()
     
     async def disconnect(self, close_code):
+        # If user is authenticated, broadcast disconnect message and remove from room_users
+        if hasattr(self, 'user') and self.user.is_authenticated:
+            # Remove user from the room_users dictionary
+            if self.room_group_name in YourConsumer.room_users and str(self.user.id) in YourConsumer.room_users[self.room_group_name]:
+                del YourConsumer.room_users[self.room_group_name][str(self.user.id)]
+            
+            # Broadcast user leave to the room
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "user_leave",
+                    "user_id": self.user.id,
+                    "username": self.user.username
+                }
+            )
+
         # Remove user from the group
         await self.channel_layer.group_discard(
             self.room_group_name,
@@ -35,18 +59,58 @@ class YourConsumer(AsyncWebsocketConsumer):
                 self.user = await self.get_user_from_token(token)
 
                 if self.user.is_authenticated:
+                    # Add user to room_users dictionary
+                    YourConsumer.room_users[self.room_group_name][str(self.user.id)] = {
+                        "id": self.user.id,
+                        "user_id": self.user.id,
+                        "username": self.user.username,
+                        "email": self.user.email
+                    }
+                    
+                    # Send success message with list of existing users to the newly joined user
+                    existing_users = list(YourConsumer.room_users[self.room_group_name].values())
+                    
                     await self.send(text_data=json.dumps({
                         "type": "auth_success",
                         "user": {
                             "id": self.user.id,
                             "username": self.user.username,
                             "user_email": self.user.email
-                        }
+                        },
+                        "existing_users": existing_users
+
                     }))
+                    
+                    # Broadcast user join event to the room
+                    await self.channel_layer.group_send(
+                        self.room_group_name,
+                        {
+                            "type": "user_join",
+                            "user_id": self.user.id,
+                            "username": self.user.username
+                        }
+                    )
                 else:
                     await self.send(text_data=json.dumps({
                         "type": "auth_fail",
                         "message": "Authentication failed"
+                    }))
+            
+            # Handle request for room users list
+            elif data.get("type") == "get_room_users":
+                if not hasattr(self, 'user') or not self.user.is_authenticated:
+                    await self.send(text_data=json.dumps({
+                        "type": "error",
+                        "message": "You need to authenticate first"
+                    }))
+                    return
+                
+                # Send list of users in the room
+                if self.room_group_name in YourConsumer.room_users:
+                    existing_users = list(YourConsumer.room_users[self.room_group_name].values())
+                    await self.send(text_data=json.dumps({
+                        "type": "room_users",
+                        "users": existing_users
                     }))
             
             # Handle chat messages
@@ -107,3 +171,19 @@ class YourConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             print(f"Authentication error: {str(e)}")
             return AnonymousUser()
+        
+    async def user_join(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "user_join",
+            "user_id": event["user_id"],
+            "username": event["username"],
+            "message": f"{event['username']} has joined the chat."
+        }))
+        
+    async def user_leave(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "user_leave",
+            "user_id": event["user_id"],
+            "username": event["username"],
+            "message": f"{event['username']} has left the chat."
+        }))

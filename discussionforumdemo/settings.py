@@ -29,7 +29,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG") == "True"
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['10.10.9.49', 'localhost', '127.0.0.1', '192.168.1.71']
 
 
 # Application definition
@@ -169,7 +169,10 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000"
+    "http://localhost:3000",
+    "http://10.10.9.49:3000",
+    "http://192.168.1.71:3000"
+
 ]
 
 EMAIL_BACKEND=os.getenv('EMAIL_BACKEND')
