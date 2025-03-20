@@ -20,7 +20,6 @@ class Room(models.Model):
     host = models.ForeignKey(User, on_delete=models.CASCADE, related_name='hosted_rooms')
     topic = models.CharField(max_length=255)
     unique_code = models.CharField(max_length=255, unique=True)
-    timer_duration = models.DurationField()
     created_at = models.DateField(auto_now_add=True)
 
     def __str__(self):

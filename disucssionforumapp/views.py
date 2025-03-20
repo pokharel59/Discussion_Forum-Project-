@@ -10,9 +10,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from .models import User, Room
 from .serializers import RoomSerializer
-from datetime import timedelta
+import os
 
 # Create your views here.
+ip_address = os.getenv('IP_ADDRESS')
         
 @api_view(['POST'])
 def register(request):
@@ -42,7 +43,7 @@ def register(request):
 
         # Generate token for verification
         token = Token.objects.create(user=user)
-        verification_link = f"http://192.168.1.71:8000/endpoint/verify/{token.key}"
+        verification_link = f"http://{ip_address}/endpoint/verify/{token.key}"
 
         # Send verification email
         send_mail(
