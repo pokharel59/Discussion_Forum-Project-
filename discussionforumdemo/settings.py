@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 from dotenv import load_dotenv
+from datetime import timedelta
 import os
 
 load_dotenv()
@@ -144,6 +145,17 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
+
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=2),  # Extend access token validity
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),  # Extend refresh token validity
+    "ROTATE_REFRESH_TOKENS": True,  # Issue a new refresh token upon use
+    "BLACKLIST_AFTER_ROTATION": True,  # Blacklist old refresh tokens
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,  # Ensure SECRET_KEY is set
+}
+
 
 
 # Internationalization

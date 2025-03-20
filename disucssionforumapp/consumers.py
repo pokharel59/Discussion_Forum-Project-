@@ -27,27 +27,25 @@ class YourConsumer(AsyncWebsocketConsumer):
         await self.accept()
     
     async def disconnect(self, close_code):
-        # If user is authenticated, broadcast disconnect message and remove from room_users
+        # Only remove user if they were authenticated
         if hasattr(self, 'user') and self.user.is_authenticated:
-            # Remove user from the room_users dictionary
             if self.room_group_name in YourConsumer.room_users and str(self.user.id) in YourConsumer.room_users[self.room_group_name]:
+                # Remove user from room users
                 del YourConsumer.room_users[self.room_group_name][str(self.user.id)]
-            
-            # Broadcast user leave to the room
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {
-                    "type": "user_leave",
-                    "user_id": self.user.id,
-                    "username": self.user.username
-                }
-            )
-
-        # Remove user from the group
-        await self.channel_layer.group_discard(
-            self.room_group_name,
-            self.channel_name
-        )
+                
+                # Broadcast leave message only if user was in the room and not just navigating
+                if not close_code == 1001:  # Normal navigation closure
+                    await self.channel_layer.group_send(
+                        self.room_group_name,
+                        {
+                            "type": "user_leave",
+                            "user_id": self.user.id,
+                            "username": self.user.username,
+                        }
+                    )
+        
+        # Discard from the group
+        await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
     async def receive(self, text_data):
         try:
@@ -64,7 +62,7 @@ class YourConsumer(AsyncWebsocketConsumer):
                         "id": self.user.id,
                         "user_id": self.user.id,
                         "username": self.user.username,
-                        "email": self.user.email
+                        "email": self.user.email,
                     }
                     
                     # Send success message with list of existing users to the newly joined user
@@ -75,7 +73,7 @@ class YourConsumer(AsyncWebsocketConsumer):
                         "user": {
                             "id": self.user.id,
                             "username": self.user.username,
-                            "user_email": self.user.email
+                            "user_email": self.user.email,
                         },
                         "existing_users": existing_users
 
@@ -87,7 +85,7 @@ class YourConsumer(AsyncWebsocketConsumer):
                         {
                             "type": "user_join",
                             "user_id": self.user.id,
-                            "username": self.user.username
+                            "username": self.user.username,
                         }
                     )
                 else:
@@ -135,6 +133,7 @@ class YourConsumer(AsyncWebsocketConsumer):
                         "username": self.user.username
                     }
                 )
+
         except json.JSONDecodeError:
             await self.send(text_data=json.dumps({
                 "type": "error",

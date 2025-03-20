@@ -109,8 +109,9 @@ def login(request):
 def get_user_info(request):
     user = request.user
     return Response({
+        "id": user.id,
         "email": user.email,
-        "username": user.username
+        "username": user.username,
     })
 
 def parse_duration(duration_str):
