@@ -114,13 +114,6 @@ def get_user_info(request):
         "username": user.username,
     })
 
-def parse_duration(duration_str):
-    """Parses duration string '[DD] [HH:[MM:]]ss[.uuuuuu]' into timedelta."""
-    parts = duration_str.split()
-    days = int(parts[0])
-    time_parts = list(map(float, parts[1].split(':')))
-    return timedelta(days=days, hours=int(time_parts[0]), minutes=int(time_parts[1]), seconds=time_parts[2])
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_room(request):
@@ -129,16 +122,9 @@ def create_room(request):
 
     unique_code = str(uuid.uuid4())  # FIXED: Generate a proper UUID string
 
-    # Convert timer_duration to timedelta
-    try:
-        timer_duration = parse_duration(data.get('timer_duration'))
-    except Exception:
-        return Response({'error': 'Invalid timer_duration format'}, status=status.HTTP_400_BAD_REQUEST)
-
     serializer = RoomSerializer(data={
         'topic': data.get('topic'),
         'unique_code': unique_code,
-        'timer_duration': timer_duration
     })
 
     if serializer.is_valid():
